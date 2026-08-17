@@ -297,7 +297,7 @@
             .middle { width: 100%; order: 2; margin: 20px 0; }
         }
 
-        /* Modal kết thúc */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -406,7 +406,7 @@
     </div>
 </div>
 
-<!-- MODAL KẾT THÚC -->
+<!-- MODAL -->
 <div id="resultModal" class="modal">
     <div class="modal-box">
         <h2>🏁 KẾT THÚC</h2>
@@ -516,7 +516,7 @@
     function genSet(n) { let arr=[]; for(let i=0;i<n;i++) arr.push(genOne()); return arr; }
 
     // ============================================================
-    // LOGIC GAME (chạy trên cả 2 phía, đồng bộ qua tin nhắn)
+    // LOGIC GAME
     // ============================================================
     function startGame(questionsArr) {
         questions = questionsArr;
@@ -546,9 +546,7 @@
         answerInput.disabled = false;
         submitBtn.disabled = false;
         answerInput.focus();
-        // Cập nhật tiến độ
         qCounter.textContent = qIndex + 1;
-        // Thông báo cho người kia (nếu là host)
         if (isHost && conn) {
             conn.send({ type: 'newQ', q: q, index: qIndex });
         }
@@ -565,18 +563,15 @@
             const name = pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
             gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
             playCorrect();
-            // Thông báo cho người kia
             if (conn) {
                 conn.send({ type: 'correct', pid, score: scores[pid] });
             }
-            // Chuyển câu tiếp theo sau 2s
             setTimeout(() => {
                 qIndex++;
                 showQuestion();
                 if (conn) conn.send({ type: 'nextQ', index: qIndex });
             }, 2000);
         } else {
-            // Sai – chỉ thông báo, không khóa
             const name = pid === 1 ? 'Bạn' : 'Đối thủ';
             gameMsg.innerHTML = `❌ ${name} sai! Thử lại.`;
             playWrong();
@@ -586,7 +581,6 @@
         }
     }
 
-    // Gửi đáp án từ người chơi
     function submitAnswer() {
         if (!gameStarted || locked) return;
         const val = parseInt(answerInput.value.trim());
@@ -594,20 +588,14 @@
             gameMsg.innerHTML = '⚠️ Nhập số!';
             return;
         }
-        // Gửi lên peer
         if (conn) {
             conn.send({ type: 'answer', pid: myPlayerId, value: val });
         }
-        // Xử lý cục bộ luôn (vì cả 2 đều chạy cùng logic)
         handleAnswer(myPlayerId, val);
-        // Khóa input tạm thời (sẽ mở lại khi câu mới)
         answerInput.disabled = true;
         submitBtn.disabled = true;
     }
 
-    // ============================================================
-    // CẬP NHẬT UI
-    // ============================================================
     function updateScoreUI() {
         p1Score.textContent = scores[1] || 0;
         p2Score.textContent = scores[2] || 0;
@@ -644,34 +632,26 @@
         roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b>`;
     });
 
-    // Tạo phòng (host)
     createBtn.onclick = () => {
         if (!myId) return;
         const num = prompt('Số câu hỏi (mặc định 10):', '10');
         let count = parseInt(num) || 10;
         if (count < 1) count = 1;
-        // Tạo câu hỏi
         const qs = genSet(count);
         isHost = true;
         myPlayerId = 1;
-        // Chuyển sang chờ
         roomInfo.innerHTML = `✅ Phòng tạo thành công. Mã: <b>${myId}</b><br>Chia sẻ mã này cho bạn!`;
         createBtn.disabled = true;
         joinBtn.disabled = true;
         roomInput.disabled = true;
-        // Lắng nghe kết nối từ người khác
         peer.on('connection', (incoming) => {
-            if (conn) {
-                incoming.close();
-                return;
-            }
+            if (conn) { incoming.close(); return; }
             conn = incoming;
             conn.on('data', (data) => handlePeerData(data));
             conn.on('close', () => {
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
             });
-            // Gửi câu hỏi cho người mới
             setTimeout(() => {
                 if (conn) {
                     conn.send({ type: 'init', questions: qs, playerId: 2 });
@@ -683,12 +663,10 @@
         });
     };
 
-    // Tham gia phòng
     joinBtn.onclick = () => {
         const targetId = roomInput.value.trim().toUpperCase();
         if (!targetId) { alert('Nhập mã phòng!'); return; }
         if (!myId) return;
-        // Kết nối đến host
         const c = peer.connect(targetId);
         c.on('open', () => {
             conn = c;
@@ -703,16 +681,12 @@
             createBtn.disabled = true;
             joinBtn.disabled = true;
             roomInput.disabled = true;
-            // Chờ host gửi init
         });
-        // Lưu ý: host sẽ gửi init sau khi kết nối
     };
 
-    // Xử lý dữ liệu nhận từ peer
     function handlePeerData(data) {
         switch(data.type) {
             case 'init':
-                // Host gửi bộ câu hỏi và gán playerId
                 myPlayerId = data.playerId;
                 startGame(data.questions);
                 gameArea.style.display = 'block';
@@ -747,7 +721,6 @@
                 }
                 break;
             case 'nextQ':
-                // Đồng bộ chỉ số câu
                 qIndex = data.index;
                 break;
             default: break;
@@ -777,13 +750,7 @@
         else document.exitFullscreen();
     };
 
-    // ============================================================
-    // KHỞI ĐỘNG
-    // ============================================================
-    // Tự động focus input
     roomInput.focus();
-
-    // Khi trang load, peer đã sẵn sàng.
 </script>
 </body>
 </html>
