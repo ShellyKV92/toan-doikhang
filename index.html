@@ -114,6 +114,8 @@
             border-radius: 55px;
             font-size: 1rem;
             color: #5a3d2a;
+            max-width: 90%;
+            word-break: break-all;
         }
 
         /* GAME */
@@ -297,7 +299,7 @@
             .middle { width: 100%; order: 2; margin: 20px 0; }
         }
 
-        /* Modal */
+        /* Modal kết thúc */
         .modal {
             display: none;
             position: fixed;
@@ -364,7 +366,7 @@
             <input type="text" id="roomInput" placeholder="Mã phòng" maxlength="6" style="text-transform:uppercase;" />
             <button id="joinBtn">🎮 Tham gia</button>
         </div>
-        <div id="roomInfo" class="info">👥 Chưa có phòng</div>
+        <div id="roomInfo" class="info">🔑 Đang kết nối...</div>
     </div>
 
     <!-- GAME -->
@@ -406,7 +408,7 @@
     </div>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL KẾT THÚC -->
 <div id="resultModal" class="modal">
     <div class="modal-box">
         <h2>🏁 KẾT THÚC</h2>
@@ -420,7 +422,7 @@
 
 <script>
     // ============================================================
-    // ÂM THANH (web audio – không cần file)
+    // ÂM THANH
     // ============================================================
     let soundEnabled = true;
     function playTone(freq, dur = 0.15, type = 'sine') {
@@ -450,21 +452,21 @@
     };
 
     // ============================================================
-    // PEERJS – KẾT NỐI TRỰC TIẾP GIỮA 2 TRÌNH DUYỆT
+    // PEERJS – KẾT NỐI TRỰC TIẾP
     // ============================================================
     const peer = new Peer(); // tự động tạo ID ngẫu nhiên
 
     let myId = null;
     let isHost = false;
-    let conn = null;        // kết nối với người kia
+    let conn = null;
     let gameStarted = false;
     let currentQuestion = { text: '', answer: 0 };
     let scores = { 1: 0, 2: 0 };
     let qIndex = 0;
     let qTotal = 0;
     let questions = [];
-    let locked = false;     // đã có người trả lời đúng
-    let myPlayerId = 1;     // 1: Gấu, 2: Ếch
+    let locked = false;
+    let myPlayerId = 1;
 
     // DOM
     const lobby = document.getElementById('lobby');
@@ -490,7 +492,7 @@
     const closeResult = document.getElementById('closeResult');
 
     // ============================================================
-    // SINH CÂU HỎI (80% nâng cao, 20% cơ bản)
+    // SINH CÂU HỎI
     // ============================================================
     function randomInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
     function genHard() {
@@ -578,6 +580,10 @@
             if (conn) {
                 conn.send({ type: 'wrong', pid });
             }
+            // Cho phép thử lại vì chưa khóa
+            answerInput.disabled = false;
+            submitBtn.disabled = false;
+            answerInput.focus();
         }
     }
 
@@ -629,11 +635,20 @@
     // ============================================================
     peer.on('open', (id) => {
         myId = id;
-        roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b>`;
+        roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b> (sao chép mã này để chia sẻ)`;
     });
 
+    peer.on('error', (err) => {
+        console.error('PeerJS error:', err);
+        roomInfo.innerHTML = '⚠️ Lỗi kết nối PeerJS. Hãy thử lại sau.';
+    });
+
+    // Tạo phòng (host)
     createBtn.onclick = () => {
-        if (!myId) return;
+        if (!myId) {
+            alert('Đang kết nối PeerJS, vui lòng chờ...');
+            return;
+        }
         const num = prompt('Số câu hỏi (mặc định 10):', '10');
         let count = parseInt(num) || 10;
         if (count < 1) count = 1;
@@ -644,14 +659,20 @@
         createBtn.disabled = true;
         joinBtn.disabled = true;
         roomInput.disabled = true;
+
+        // Lắng nghe kết nối từ người khác
         peer.on('connection', (incoming) => {
-            if (conn) { incoming.close(); return; }
+            if (conn) {
+                incoming.close();
+                return;
+            }
             conn = incoming;
             conn.on('data', (data) => handlePeerData(data));
             conn.on('close', () => {
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
             });
+            // Gửi câu hỏi cho người mới
             setTimeout(() => {
                 if (conn) {
                     conn.send({ type: 'init', questions: qs, playerId: 2 });
@@ -663,10 +684,14 @@
         });
     };
 
+    // Tham gia phòng
     joinBtn.onclick = () => {
         const targetId = roomInput.value.trim().toUpperCase();
         if (!targetId) { alert('Nhập mã phòng!'); return; }
-        if (!myId) return;
+        if (!myId) {
+            alert('Đang kết nối PeerJS, vui lòng chờ...');
+            return;
+        }
         const c = peer.connect(targetId);
         c.on('open', () => {
             conn = c;
@@ -682,8 +707,12 @@
             joinBtn.disabled = true;
             roomInput.disabled = true;
         });
+        c.on('error', (err) => {
+            alert('Không thể kết nối đến phòng. Kiểm tra mã hoặc host chưa sẵn sàng.');
+        });
     };
 
+    // Xử lý dữ liệu nhận từ peer
     function handlePeerData(data) {
         switch(data.type) {
             case 'init':
@@ -714,8 +743,8 @@
                 }
                 break;
             case 'wrong':
-                const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
                 if (data.pid !== myPlayerId) {
+                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
                     gameMsg.innerHTML = `❌ ${name} sai!`;
                     playWrong();
                 }
@@ -750,6 +779,9 @@
         else document.exitFullscreen();
     };
 
+    // ============================================================
+    // KHỞI ĐỘNG
+    // ============================================================
     roomInput.focus();
 </script>
 </body>
