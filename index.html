@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Toán Đối Kháng – 2 người online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Quicksand:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Quicksand', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #fdeff2, #e0f2e9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1300px;
+            width: 100%;
+            background: rgba(255,252,245,0.96);
+            border-radius: 80px;
+            padding: 30px 35px;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.1);
+            border: 1px solid #ffe0c0;
+        }
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-family: 'Bangers', cursive;
+            font-size: 4rem;
+            color: #d96c3e;
+            letter-spacing: 2px;
+            flex: 1;
+            text-align: center;
+        }
+        .header .controls {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        .header .controls button {
+            font-family: 'Quicksand', sans-serif;
+            background: #cfe9df;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #9ebfaf;
+            transition: 0.05s linear;
+            color: #3a5e4c;
+        }
+        .header .controls button:active { transform: translateY(2px); box-shadow: 0 1px 0 #9ebfaf; }
+        @media (max-width: 1000px) {
+            .header { flex-wrap: wrap; justify-content: center; }
+            .header .controls { position: static; transform: none; margin-top: 10px; }
+            .header h1 { font-size: 3rem; flex: 0 0 100%; }
+        }
+
+        /* LOBBY */
+        .lobby {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 40px 0;
+        }
+        .lobby h2 { font-family: 'Bangers', cursive; font-size: 2.5rem; color: #d96c3e; }
+        .lobby .row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .lobby input {
+            padding: 10px 20px;
+            border-radius: 55px;
+            border: 2px solid #c6aa90;
+            font-size: 1rem;
+            font-family: 'Quicksand', sans-serif;
+            width: 180px;
+            text-align: center;
+            outline: none;
+        }
+        .lobby button {
+            font-family: 'Quicksand', sans-serif;
+            background: #e6a07a;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 55px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #b76a3a;
+            transition: 0.05s linear;
+        }
+        .lobby button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
+        .lobby button.secondary { background: #8fc1a8; box-shadow: 0 3px 0 #5e8a6e; }
+        .lobby .info {
+            background: #f7ede3;
+            padding: 10px 25px;
+            border-radius: 55px;
+            font-size: 1rem;
+            color: #5a3d2a;
+        }
+
+        /* GAME */
+        .game-area { display: none; }
+        .vs {
+            display: flex;
+            gap: 25px;
+            margin: 20px 0 30px;
+        }
+        .player-card {
+            flex: 1;
+            background: #fff5f0;
+            border-radius: 65px;
+            padding: 22px 18px;
+            border: 2px solid #ffcdb0;
+            box-shadow: 0 12px 20px rgba(0,0,0,0.05);
+        }
+        .player-card.p2 { background: #f0faf5; border-color: #b8e0cc; }
+        .player-name {
+            font-weight: 800;
+            font-size: 1.7rem;
+            text-align: center;
+            background: #ffe0d4;
+            padding: 10px;
+            border-radius: 55px;
+            color: #7b4a2e;
+        }
+        .p2 .player-name { background: #d9f0e6; color: #2e6b4a; }
+        .total-score {
+            font-size: 2.8rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 12px 0;
+            background: #fff9f0;
+            border-radius: 55px;
+            padding: 6px;
+            color: #c97e3a;
+        }
+        .score-list {
+            background: #fff7ed;
+            border-radius: 50px;
+            padding: 10px;
+            margin: 12px 0;
+        }
+        .score-list p { font-weight: 600; font-size: 0.8rem; color: #a0672e; }
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            min-height: 48px;
+        }
+        .badge {
+            background: #f9cfb5;
+            padding: 5px 12px;
+            border-radius: 45px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #5c3a1e;
+        }
+        .badge-p2 { background: #c2e0d4; color: #2a5a3e; }
+
+        .input-area {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .input-area input {
+            font-size: 1.5rem;
+            padding: 8px 16px;
+            border-radius: 55px;
+            border: 2px solid #c6aa90;
+            width: 120px;
+            text-align: center;
+            outline: none;
+            font-family: 'Quicksand', sans-serif;
+        }
+        .input-area button {
+            font-family: 'Quicksand', sans-serif;
+            background: #e6a07a;
+            border: none;
+            padding: 8px 28px;
+            border-radius: 55px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #b76a3a;
+            transition: 0.05s linear;
+        }
+        .input-area button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
+        .input-area button:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
+
+        .middle {
+            width: 390px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fffef8;
+            border-radius: 80px;
+            padding: 20px 18px;
+            border: 1px solid #ffddb0;
+            box-shadow: 0 12px 20px rgba(0,0,0,0.05);
+        }
+        .middle .vs-icon {
+            font-weight: 800;
+            font-size: 1.8rem;
+            color: #e6945e;
+            margin: 8px 0;
+        }
+        .question-box {
+            background: #fffaf2;
+            padding: 18px;
+            border-radius: 65px;
+            box-shadow: 0 6px 0 #e2c294;
+            width: 100%;
+            text-align: center;
+        }
+        .question-text {
+            font-weight: 800;
+            font-size: 2.2rem;
+            background: #2c3e50;
+            padding: 14px 8px;
+            border-radius: 55px;
+            color: #f9d56e;
+        }
+        .info-message {
+            margin-top: 12px;
+            background: #fef3e4;
+            padding: 8px 16px;
+            border-radius: 55px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            color: #b4652a;
+            min-height: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .footer {
+            margin-top: 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            background: #f8ede3dd;
+            padding: 12px 25px;
+            border-radius: 65px;
+            gap: 12px;
+        }
+        .footer .total-pk, .footer .progress {
+            background: #ffe0cc;
+            padding: 6px 20px;
+            border-radius: 45px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #6b3f1c;
+        }
+        .footer .progress { background: #d9f0e6; color: #2a5a3e; }
+        .footer button {
+            background: #e6a07a;
+            border: none;
+            padding: 7px 26px;
+            border-radius: 45px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #b76a3a;
+        }
+        .footer button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
+
+        @media (max-width: 1000px) {
+            .vs { flex-direction: column; }
+            .middle { width: 100%; order: 2; margin: 20px 0; }
+        }
+
+        /* Modal kết thúc */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            padding: 20px;
+        }
+        .modal-box {
+            background: #fff8f0;
+            border-radius: 75px;
+            padding: 30px 35px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            border: 3px solid #f5cfb5;
+            animation: popIn 0.3s;
+        }
+        @keyframes popIn { 0% { transform: scale(0.2); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .modal-box h2 {
+            font-family: 'Bangers', cursive;
+            font-size: 2.3rem;
+            color: #c95a2e;
+        }
+        .modal-box .result { font-size: 1.5rem; margin: 15px 0; }
+        .modal-btn {
+            font-family: 'Quicksand', sans-serif;
+            background: #e6a07a;
+            border: none;
+            padding: 10px 32px;
+            border-radius: 55px;
+            font-weight: 800;
+            font-size: 1rem;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 3px 0 #b76a3a;
+            transition: 0.05s linear;
+        }
+        .modal-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>TOÁN ĐỐI KHÁNG</h1>
+        <div class="controls">
+            <button id="fullscreenBtn">🖥️ FULLSCREEN</button>
+            <button id="soundToggle">🔊 ÂM THANH</button>
+        </div>
+    </div>
+
+    <!-- LOBBY -->
+    <div id="lobby" class="lobby">
+        <h2>🏠 PHÒNG CHỜ</h2>
+        <div class="row">
+            <button id="createBtn" class="secondary">➕ Tạo phòng</button>
+            <span style="margin: 0 10px;">hoặc</span>
+            <input type="text" id="roomInput" placeholder="Mã phòng" maxlength="6" style="text-transform:uppercase;" />
+            <button id="joinBtn">🎮 Tham gia</button>
+        </div>
+        <div id="roomInfo" class="info">👥 Chưa có phòng</div>
+    </div>
+
+    <!-- GAME -->
+    <div id="gameArea" class="game-area">
+        <div class="vs">
+            <div class="player-card" id="p1Card">
+                <div class="player-name" id="p1Name">🐼 Gấu Hồng</div>
+                <div class="total-score" id="p1Score">0</div>
+                <div class="score-list"><p>🎖️ ĐIỂM</p><div class="badges" id="p1Badges">—</div></div>
+                <div class="input-area">
+                    <input type="number" id="answerInput" placeholder="Đáp án" disabled />
+                    <button id="submitBtn" disabled>✅ Gửi</button>
+                </div>
+            </div>
+
+            <div class="middle">
+                <div class="vs-icon">⚔️ ĐẤU TRÍ ⚔️</div>
+                <div class="question-box">
+                    <div class="question-text" id="questionText">???</div>
+                </div>
+                <div class="info-message" id="gameMsg">🌟 Chờ người chơi...</div>
+            </div>
+
+            <div class="player-card p2" id="p2Card">
+                <div class="player-name" id="p2Name">🐸 Ếch Xanh</div>
+                <div class="total-score" id="p2Score">0</div>
+                <div class="score-list"><p>🎖️ ĐIỂM</p><div class="badges" id="p2Badges">—</div></div>
+                <div style="text-align:center; margin-top:20px; font-size:1.2rem; font-weight:bold; color:#2e6b4a;">
+                    👥 Đang chờ...
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="total-pk">🏆 TỔNG: <span id="totalPk">0 - 0</span></div>
+            <div class="progress">📊 TIẾN ĐỘ: <span id="qCounter">0</span>/<span id="qTotal">0</span></div>
+            <button id="leaveBtn">🚪 Rời phòng</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL KẾT THÚC -->
+<div id="resultModal" class="modal">
+    <div class="modal-box">
+        <h2>🏁 KẾT THÚC</h2>
+        <div id="resultMsg" class="result"></div>
+        <button class="modal-btn" id="closeResult">🔙 Về lobby</button>
+    </div>
+</div>
+
+<!-- PeerJS -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+<script>
+    // ============================================================
+    // ÂM THANH (web audio – không cần file)
+    // ============================================================
+    let soundEnabled = true;
+    function playTone(freq, dur = 0.15, type = 'sine') {
+        if (!soundEnabled) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.value = 0.25;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            setTimeout(() => osc.stop(), dur * 1000);
+        } catch (_) {}
+    }
+    function playCorrect() { playTone(880, 0.15); setTimeout(() => playTone(1100, 0.15), 150); }
+    function playWrong()   { playTone(330, 0.4, 'sawtooth'); }
+    function playWin() {
+        [523, 659, 784, 1047, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.15), i * 150));
+    }
+
+    document.getElementById('soundToggle').onclick = function() {
+        soundEnabled = !soundEnabled;
+        this.textContent = soundEnabled ? '🔊 ÂM THANH' : '🔇 TẮT ÂM';
+    };
+
+    // ============================================================
+    // PEERJS – KẾT NỐI TRỰC TIẾP GIỮA 2 TRÌNH DUYỆT
+    // ============================================================
+    const peer = new Peer(); // tự động tạo ID ngẫu nhiên
+
+    let myId = null;
+    let isHost = false;
+    let conn = null;        // kết nối với người kia
+    let gameStarted = false;
+    let currentQuestion = { text: '', answer: 0 };
+    let scores = { 1: 0, 2: 0 };
+    let qIndex = 0;
+    let qTotal = 0;
+    let questions = [];
+    let locked = false;     // đã có người trả lời đúng
+    let myPlayerId = 1;     // 1: Gấu, 2: Ếch
+
+    // DOM
+    const lobby = document.getElementById('lobby');
+    const gameArea = document.getElementById('gameArea');
+    const roomInfo = document.getElementById('roomInfo');
+    const createBtn = document.getElementById('createBtn');
+    const joinBtn = document.getElementById('joinBtn');
+    const roomInput = document.getElementById('roomInput');
+    const questionText = document.getElementById('questionText');
+    const gameMsg = document.getElementById('gameMsg');
+    const answerInput = document.getElementById('answerInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const p1Score = document.getElementById('p1Score');
+    const p2Score = document.getElementById('p2Score');
+    const p1Badges = document.getElementById('p1Badges');
+    const p2Badges = document.getElementById('p2Badges');
+    const totalPk = document.getElementById('totalPk');
+    const qCounter = document.getElementById('qCounter');
+    const qTotal = document.getElementById('qTotal');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const resultModal = document.getElementById('resultModal');
+    const resultMsg = document.getElementById('resultMsg');
+    const closeResult = document.getElementById('closeResult');
+
+    // ============================================================
+    // SINH CÂU HỎI (80% nâng cao, 20% cơ bản)
+    // ============================================================
+    function randomInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
+    function genHard() {
+        const type = randomInt(1,7);
+        let a,b,c,ans,txt;
+        switch(type) {
+            case 1: a=randomInt(10,70); b=randomInt(10,70); c=randomInt(10,70); ans=a+b+c; txt=`${a} + ${b} + ${c} = ?`; break;
+            case 2: a=randomInt(30,99); b=randomInt(10,60); c=randomInt(5, Math.min(a+b-1,80)); ans=a+b-c; txt=`${a} + ${b} - ${c} = ?`; break;
+            case 3: a=randomInt(40,99); b=randomInt(10,a-5); c=randomInt(10,70); ans=a-b+c; txt=`${a} - ${b} + ${c} = ?`; break;
+            case 4: a=randomInt(3,15); b=randomInt(3,15); ans=a*b; txt=`${a} × ${b} = ?`; break;
+            case 5: b=randomInt(2,12); ans=randomInt(2,15); a=b*ans; txt=`${a} ÷ ${b} = ?`; break;
+            case 6: a=randomInt(5,12); b=randomInt(2,8); c=randomInt(1,20); ans=a*b+c; txt=`${a} × ${b} + ${c} = ?`; break;
+            default: a=randomInt(15,50); b=randomInt(5,30); c=randomInt(2,15); ans=a-b+c; txt=`${a} - ${b} + ${c} = ?`; break;
+        }
+        return { text: txt, answer: ans };
+    }
+    function genEasy() {
+        let t=randomInt(1,2);
+        if(t===1) { let a=randomInt(10,70), b=randomInt(10,70); return { text:`${a} + ${b} = ?`, answer:a+b }; }
+        else { let a=randomInt(25,90), b=randomInt(5,a-1); return { text:`${a} - ${b} = ?`, answer:a-b }; }
+    }
+    function genOne() { return randomInt(1,100)<=80 ? genHard() : genEasy(); }
+    function genSet(n) { let arr=[]; for(let i=0;i<n;i++) arr.push(genOne()); return arr; }
+
+    // ============================================================
+    // LOGIC GAME (chạy trên cả 2 phía, đồng bộ qua tin nhắn)
+    // ============================================================
+    function startGame(questionsArr) {
+        questions = questionsArr;
+        qTotal = questions.length;
+        qTotal.textContent = qTotal;
+        qIndex = 0;
+        scores = {1:0, 2:0};
+        updateScoreUI();
+        gameStarted = true;
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+        locked = false;
+        showQuestion();
+    }
+
+    function showQuestion() {
+        if (qIndex >= qTotal) {
+            endGame();
+            return;
+        }
+        const q = questions[qIndex];
+        currentQuestion = q;
+        questionText.textContent = q.text;
+        gameMsg.innerHTML = '🤔 Nhập đáp án của bạn!';
+        locked = false;
+        answerInput.value = '';
+        answerInput.disabled = false;
+        submitBtn.disabled = false;
+        answerInput.focus();
+        // Cập nhật tiến độ
+        qCounter.textContent = qIndex + 1;
+        // Thông báo cho người kia (nếu là host)
+        if (isHost && conn) {
+            conn.send({ type: 'newQ', q: q, index: qIndex });
+        }
+    }
+
+    function handleAnswer(pid, val) {
+        if (locked) return;
+        const correct = (val === currentQuestion.answer);
+        if (correct) {
+            locked = true;
+            scores[pid] += 10;
+            updateScoreUI();
+            addBadge(pid, '✅ +10');
+            const name = pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+            gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
+            playCorrect();
+            // Thông báo cho người kia
+            if (conn) {
+                conn.send({ type: 'correct', pid, score: scores[pid] });
+            }
+            // Chuyển câu tiếp theo sau 2s
+            setTimeout(() => {
+                qIndex++;
+                showQuestion();
+                if (conn) conn.send({ type: 'nextQ', index: qIndex });
+            }, 2000);
+        } else {
+            // Sai – chỉ thông báo, không khóa
+            const name = pid === 1 ? 'Bạn' : 'Đối thủ';
+            gameMsg.innerHTML = `❌ ${name} sai! Thử lại.`;
+            playWrong();
+            if (conn) {
+                conn.send({ type: 'wrong', pid });
+            }
+        }
+    }
+
+    // Gửi đáp án từ người chơi
+    function submitAnswer() {
+        if (!gameStarted || locked) return;
+        const val = parseInt(answerInput.value.trim());
+        if (isNaN(val)) {
+            gameMsg.innerHTML = '⚠️ Nhập số!';
+            return;
+        }
+        // Gửi lên peer
+        if (conn) {
+            conn.send({ type: 'answer', pid: myPlayerId, value: val });
+        }
+        // Xử lý cục bộ luôn (vì cả 2 đều chạy cùng logic)
+        handleAnswer(myPlayerId, val);
+        // Khóa input tạm thời (sẽ mở lại khi câu mới)
+        answerInput.disabled = true;
+        submitBtn.disabled = true;
+    }
+
+    // ============================================================
+    // CẬP NHẬT UI
+    // ============================================================
+    function updateScoreUI() {
+        p1Score.textContent = scores[1] || 0;
+        p2Score.textContent = scores[2] || 0;
+        totalPk.textContent = `${scores[1] || 0} - ${scores[2] || 0}`;
+    }
+
+    function addBadge(pid, text) {
+        const container = pid === 1 ? p1Badges : p2Badges;
+        const badge = document.createElement('div');
+        badge.className = `badge ${pid === 2 ? 'badge-p2' : ''}`;
+        badge.textContent = text;
+        container.prepend(badge);
+        while (container.children.length > 8) container.removeChild(container.lastChild);
+    }
+
+    function endGame() {
+        gameStarted = false;
+        answerInput.disabled = true;
+        submitBtn.disabled = true;
+        let msg;
+        if (scores[1] > scores[2]) msg = '🏆 Gấu Hồng thắng! 🏆';
+        else if (scores[2] > scores[1]) msg = '🏆 Ếch Xanh thắng! 🏆';
+        else msg = '🤝 Hòa nhau!';
+        resultMsg.innerHTML = `${msg}<br>Điểm: ${scores[1]} - ${scores[2]}`;
+        resultModal.style.display = 'flex';
+        playWin();
+    }
+
+    // ============================================================
+    // PEERJS – TẠO / THAM GIA PHÒNG
+    // ============================================================
+    peer.on('open', (id) => {
+        myId = id;
+        roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b>`;
+    });
+
+    // Tạo phòng (host)
+    createBtn.onclick = () => {
+        if (!myId) return;
+        const num = prompt('Số câu hỏi (mặc định 10):', '10');
+        let count = parseInt(num) || 10;
+        if (count < 1) count = 1;
+        // Tạo câu hỏi
+        const qs = genSet(count);
+        isHost = true;
+        myPlayerId = 1;
+        // Chuyển sang chờ
+        roomInfo.innerHTML = `✅ Phòng tạo thành công. Mã: <b>${myId}</b><br>Chia sẻ mã này cho bạn!`;
+        createBtn.disabled = true;
+        joinBtn.disabled = true;
+        roomInput.disabled = true;
+        // Lắng nghe kết nối từ người khác
+        peer.on('connection', (incoming) => {
+            if (conn) {
+                incoming.close();
+                return;
+            }
+            conn = incoming;
+            conn.on('data', (data) => handlePeerData(data));
+            conn.on('close', () => {
+                gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
+                conn = null;
+            });
+            // Gửi câu hỏi cho người mới
+            setTimeout(() => {
+                if (conn) {
+                    conn.send({ type: 'init', questions: qs, playerId: 2 });
+                    startGame(qs);
+                    gameArea.style.display = 'block';
+                    lobby.style.display = 'none';
+                }
+            }, 500);
+        });
+    };
+
+    // Tham gia phòng
+    joinBtn.onclick = () => {
+        const targetId = roomInput.value.trim().toUpperCase();
+        if (!targetId) { alert('Nhập mã phòng!'); return; }
+        if (!myId) return;
+        // Kết nối đến host
+        const c = peer.connect(targetId);
+        c.on('open', () => {
+            conn = c;
+            myPlayerId = 2;
+            isHost = false;
+            c.on('data', (data) => handlePeerData(data));
+            c.on('close', () => {
+                gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
+                conn = null;
+            });
+            roomInfo.innerHTML = `✅ Đã tham gia phòng <b>${targetId}</b>`;
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+            // Chờ host gửi init
+        });
+        // Lưu ý: host sẽ gửi init sau khi kết nối
+    };
+
+    // Xử lý dữ liệu nhận từ peer
+    function handlePeerData(data) {
+        switch(data.type) {
+            case 'init':
+                // Host gửi bộ câu hỏi và gán playerId
+                myPlayerId = data.playerId;
+                startGame(data.questions);
+                gameArea.style.display = 'block';
+                lobby.style.display = 'none';
+                break;
+            case 'newQ':
+                currentQuestion = data.q;
+                qIndex = data.index;
+                questionText.textContent = data.q.text;
+                qCounter.textContent = qIndex + 1;
+                locked = false;
+                answerInput.value = '';
+                answerInput.disabled = false;
+                submitBtn.disabled = false;
+                gameMsg.innerHTML = '🤔 Nhập đáp án!';
+                break;
+            case 'correct':
+                scores[data.pid] = data.score;
+                updateScoreUI();
+                addBadge(data.pid, '✅ +10');
+                if (data.pid !== myPlayerId) {
+                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+                    gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
+                    playCorrect();
+                }
+                break;
+            case 'wrong':
+                const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+                if (data.pid !== myPlayerId) {
+                    gameMsg.innerHTML = `❌ ${name} sai!`;
+                    playWrong();
+                }
+                break;
+            case 'nextQ':
+                // Đồng bộ chỉ số câu
+                qIndex = data.index;
+                break;
+            default: break;
+        }
+    }
+
+    // ============================================================
+    // SỰ KIỆN UI
+    // ============================================================
+    submitBtn.onclick = submitAnswer;
+    answerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAnswer();
+    });
+
+    leaveBtn.onclick = () => {
+        if (conn) conn.close();
+        location.reload();
+    };
+
+    closeResult.onclick = () => {
+        resultModal.style.display = 'none';
+        location.reload();
+    };
+
+    document.getElementById('fullscreenBtn').onclick = () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    };
+
+    // ============================================================
+    // KHỞI ĐỘNG
+    // ============================================================
+    // Tự động focus input
+    roomInput.focus();
+
+    // Khi trang load, peer đã sẵn sàng.
+</script>
+</body>
+</html>
