@@ -6,7 +6,6 @@
     <title>Toán Đối Kháng – 2 người online</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Quicksand:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <style>
-        /* (giữ nguyên CSS) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Quicksand', sans-serif;
@@ -69,6 +68,7 @@
             .header h1 { font-size: 3rem; flex: 0 0 100%; }
         }
 
+        /* LOBBY */
         .lobby {
             display: flex;
             flex-direction: column;
@@ -118,6 +118,7 @@
             word-break: break-all;
         }
 
+        /* GAME */
         .game-area { display: none; }
         .vs {
             display: flex;
@@ -298,6 +299,7 @@
             .middle { width: 100%; order: 2; margin: 20px 0; }
         }
 
+        /* Modal kết thúc */
         .modal {
             display: none;
             position: fixed;
@@ -444,8 +446,53 @@
         [523, 659, 784, 1047, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.15), i * 150));
     }
 
+    document.getElementById('soundToggle').onclick = function() {
+        soundEnabled = !soundEnabled;
+        this.textContent = soundEnabled ? '🔊 ÂM THANH' : '🔇 TẮT ÂM';
+    };
+
     // ============================================================
-    // CÁC HÀM TIỆN ÍCH
+    // PEERJS – KẾT NỐI TRỰC TIẾP
+    // ============================================================
+    const peer = new Peer();
+
+    let myId = null;
+    let isHost = false;
+    let conn = null;
+    let gameStarted = false;
+    let currentQuestion = { text: '', answer: 0 };
+    let scores = { 1: 0, 2: 0 };
+    let qIndex = 0;
+    let totalQ = 0;
+    let questions = [];
+    let locked = false;
+    let myPlayerId = 1;
+
+    // DOM
+    const lobby = document.getElementById('lobby');
+    const gameArea = document.getElementById('gameArea');
+    const roomInfo = document.getElementById('roomInfo');
+    const createBtn = document.getElementById('createBtn');
+    const joinBtn = document.getElementById('joinBtn');
+    const roomInput = document.getElementById('roomInput');
+    const questionText = document.getElementById('questionText');
+    const gameMsg = document.getElementById('gameMsg');
+    const answerInput = document.getElementById('answerInput');
+    const submitBtn = document.getElementById('submitBtn');
+    const p1Score = document.getElementById('p1Score');
+    const p2Score = document.getElementById('p2Score');
+    const p1Badges = document.getElementById('p1Badges');
+    const p2Badges = document.getElementById('p2Badges');
+    const totalPk = document.getElementById('totalPk');
+    const qCounter = document.getElementById('qCounter');
+    const qTotal = document.getElementById('qTotal');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const resultModal = document.getElementById('resultModal');
+    const resultMsg = document.getElementById('resultMsg');
+    const closeResult = document.getElementById('closeResult');
+
+    // ============================================================
+    // SINH CÂU HỎI
     // ============================================================
     function randomInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
     function genHard() {
@@ -471,51 +518,12 @@
     function genSet(n) { let arr=[]; for(let i=0;i<n;i++) arr.push(genOne()); return arr; }
 
     // ============================================================
-    // PEERJS
-    // ============================================================
-    const peer = new Peer();
-    let myId = null;
-    let isHost = false;
-    let conn = null;
-    let gameStarted = false;
-    let currentQuestion = { text: '', answer: 0 };
-    let scores = { 1: 0, 2: 0 };
-    let qIndex = 0;
-    let qTotal = 0;
-    let questions = [];
-    let locked = false;
-    let myPlayerId = 1;
-
-    // DOM references
-    const lobby = document.getElementById('lobby');
-    const gameArea = document.getElementById('gameArea');
-    const roomInfo = document.getElementById('roomInfo');
-    const createBtn = document.getElementById('createBtn');
-    const joinBtn = document.getElementById('joinBtn');
-    const roomInput = document.getElementById('roomInput');
-    const questionText = document.getElementById('questionText');
-    const gameMsg = document.getElementById('gameMsg');
-    const answerInput = document.getElementById('answerInput');
-    const submitBtn = document.getElementById('submitBtn');
-    const p1Score = document.getElementById('p1Score');
-    const p2Score = document.getElementById('p2Score');
-    const p1Badges = document.getElementById('p1Badges');
-    const p2Badges = document.getElementById('p2Badges');
-    const totalPk = document.getElementById('totalPk');
-    const qCounter = document.getElementById('qCounter');
-    const qTotal = document.getElementById('qTotal');
-    const leaveBtn = document.getElementById('leaveBtn');
-    const resultModal = document.getElementById('resultModal');
-    const resultMsg = document.getElementById('resultMsg');
-    const closeResult = document.getElementById('closeResult');
-
-    // ============================================================
     // LOGIC GAME
     // ============================================================
     function startGame(questionsArr) {
         questions = questionsArr;
-        qTotal = questions.length;
-        qTotal.textContent = qTotal;
+        totalQ = questions.length;
+        qTotal.textContent = totalQ;
         qIndex = 0;
         scores = {1:0, 2:0};
         updateScoreUI();
@@ -527,7 +535,7 @@
     }
 
     function showQuestion() {
-        if (qIndex >= qTotal) {
+        if (qIndex >= totalQ) {
             endGame();
             return;
         }
@@ -572,7 +580,6 @@
             if (conn) {
                 conn.send({ type: 'wrong', pid });
             }
-            // Cho phép thử lại vì chưa khóa
             answerInput.disabled = false;
             submitBtn.disabled = false;
             answerInput.focus();
@@ -623,12 +630,11 @@
     }
 
     // ============================================================
-    // PEERJS EVENTS
+    // PEERJS – TẠO / THAM GIA PHÒNG
     // ============================================================
     peer.on('open', (id) => {
         myId = id;
         roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b> (sao chép mã này để chia sẻ)`;
-        console.log('PeerJS open, myId:', myId);
     });
 
     peer.on('error', (err) => {
@@ -636,8 +642,7 @@
         roomInfo.innerHTML = '⚠️ Lỗi kết nối PeerJS. Hãy thử lại sau.';
     });
 
-    // Tạo phòng
-    createBtn.addEventListener('click', function() {
+    createBtn.onclick = () => {
         if (!myId) {
             alert('Đang kết nối PeerJS, vui lòng chờ...');
             return;
@@ -653,7 +658,6 @@
         joinBtn.disabled = true;
         roomInput.disabled = true;
 
-        // Lắng nghe kết nối từ người khác
         peer.on('connection', (incoming) => {
             if (conn) {
                 incoming.close();
@@ -665,7 +669,6 @@
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
             });
-            // Gửi câu hỏi cho người mới
             setTimeout(() => {
                 if (conn) {
                     conn.send({ type: 'init', questions: qs, playerId: 2 });
@@ -675,10 +678,9 @@
                 }
             }, 500);
         });
-    });
+    };
 
-    // Tham gia phòng
-    joinBtn.addEventListener('click', function() {
+    joinBtn.onclick = () => {
         const targetId = roomInput.value.trim().toUpperCase();
         if (!targetId) { alert('Nhập mã phòng!'); return; }
         if (!myId) {
@@ -703,9 +705,8 @@
         c.on('error', (err) => {
             alert('Không thể kết nối đến phòng. Kiểm tra mã hoặc host chưa sẵn sàng.');
         });
-    });
+    };
 
-    // Xử lý dữ liệu nhận từ peer
     function handlePeerData(data) {
         switch(data.type) {
             case 'init':
@@ -750,38 +751,32 @@
     }
 
     // ============================================================
-    // UI EVENTS
+    // SỰ KIỆN UI
     // ============================================================
-    submitBtn.addEventListener('click', submitAnswer);
+    submitBtn.onclick = submitAnswer;
     answerInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') submitAnswer();
     });
 
-    leaveBtn.addEventListener('click', () => {
+    leaveBtn.onclick = () => {
         if (conn) conn.close();
         location.reload();
-    });
+    };
 
-    closeResult.addEventListener('click', () => {
+    closeResult.onclick = () => {
         resultModal.style.display = 'none';
         location.reload();
-    });
+    };
 
-    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+    document.getElementById('fullscreenBtn').onclick = () => {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen();
         else document.exitFullscreen();
-    });
-
-    document.getElementById('soundToggle').addEventListener('click', function() {
-        soundEnabled = !soundEnabled;
-        this.textContent = soundEnabled ? '🔊 ÂM THANH' : '🔇 TẮT ÂM';
-    });
+    };
 
     // ============================================================
     // KHỞI ĐỘNG
     // ============================================================
     roomInput.focus();
-    console.log('App started');
 </script>
 </body>
 </html>
