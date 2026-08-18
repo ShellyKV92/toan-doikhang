@@ -6,7 +6,7 @@
     <title>Toán Đối Kháng – 2 người online</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Quicksand:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <style>
-        /* CSS giống hệt như bạn đã có – tôi giữ nguyên để tiết kiệm, nhưng nếu cần tôi sẽ gửi đầy đủ */
+        /* ---------- CSS ---------- */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Quicksand', sans-serif;
@@ -92,6 +92,7 @@
             width: 180px;
             text-align: center;
             outline: none;
+            text-transform: uppercase;
         }
         .lobby button {
             font-family: 'Quicksand', sans-serif;
@@ -108,6 +109,7 @@
         }
         .lobby button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
         .lobby button.secondary { background: #8fc1a8; box-shadow: 0 3px 0 #5e8a6e; }
+        .lobby button:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
         .lobby .info {
             background: #f7ede3;
             padding: 10px 25px;
@@ -344,12 +346,14 @@
         }
         .modal-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
 
-        #retryBtn {
-            margin-top: 10px;
-            background: #6c757d;
-            box-shadow: 0 3px 0 #4e555b;
+        .room-code {
+            font-weight: bold;
+            font-size: 1.5rem;
+            background: #e9ecef;
+            padding: 4px 16px;
+            border-radius: 30px;
+            display: inline-block;
         }
-        #retryBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #4e555b; }
     </style>
 </head>
 <body>
@@ -367,11 +371,10 @@
         <div class="row">
             <button id="createBtn" class="secondary">➕ Tạo phòng</button>
             <span style="margin:0 10px;">hoặc</span>
-            <input type="text" id="roomInput" placeholder="Mã phòng" maxlength="6" style="text-transform:uppercase;" />
+            <input type="text" id="roomInput" placeholder="Mã 4 số" maxlength="4" style="text-transform:uppercase;" />
             <button id="joinBtn">🎮 Tham gia</button>
         </div>
         <div id="roomInfo" class="info">🔑 Đang kết nối...</div>
-        <button id="retryBtn" style="display:none;" class="lobby-btn">🔄 Thử kết nối lại</button>
     </div>
 
     <div id="gameArea" class="game-area">
@@ -415,8 +418,32 @@
     </div>
 </div>
 
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<!-- PeerJS -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
 <script>
+    // ============================================================
+    // 🔥 THAY FIREBASE CONFIG CỦA BẠN VÀO ĐÂY
+    // ============================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyC3A6cXo2zXc3Xc3Xc3Xc3Xc3Xc3Xc3Xc3X",
+        authDomain: "your-project.firebaseapp.com",
+        databaseURL: "https://your-project-default-rtdb.firebaseio.com",
+        projectId: "your-project",
+        storageBucket: "your-project.appspot.com",
+        messagingSenderId: "123456789012",
+        appId: "1:123456789012:web:abcdef1234567890"
+    };
+
+    // Khởi tạo Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     // ============================================================
     // ÂM THANH
     // ============================================================
@@ -447,7 +474,7 @@
     };
 
     // ============================================================
-    // PEERJS
+    // PEERJS & FIREBASE
     // ============================================================
     let peer = null;
     let myId = null;
@@ -461,6 +488,7 @@
     let questions = [];
     let locked = false;
     let myPlayerId = 1;
+    let roomCode = '';
 
     // DOM
     const lobby = document.getElementById('lobby');
@@ -484,56 +512,46 @@
     const resultModal = document.getElementById('resultModal');
     const resultMsg = document.getElementById('resultMsg');
     const closeResult = document.getElementById('closeResult');
-    const retryBtn = document.getElementById('retryBtn');
 
     // ============================================================
-    // KHỞI TẠO PEER
+    // ĐĂNG NHẬP ẨN DANH FIREBASE
+    // ============================================================
+    firebase.auth().signInAnonymously().catch(err => {
+        console.error('Firebase auth error:', err);
+        roomInfo.className = 'info error';
+        roomInfo.innerHTML = '⚠️ Không thể kết nối Firebase. Kiểm tra cấu hình.';
+    });
+
+    // ============================================================
+    // PEERJS
     // ============================================================
     function initPeer() {
-        if (peer) {
-            peer.destroy();
-            peer = null;
-        }
+        if (peer) { peer.destroy(); peer = null; }
         peer = new Peer();
         peer.on('open', (id) => {
             myId = id;
             roomInfo.className = 'info success';
-            roomInfo.innerHTML = `✅ Kết nối thành công! ID của bạn: <b>${id}</b> (sao chép mã này để chia sẻ)`;
-            retryBtn.style.display = 'none';
+            roomInfo.innerHTML = '✅ Kết nối thành công!';
             createBtn.disabled = false;
             joinBtn.disabled = false;
             roomInput.disabled = false;
         });
         peer.on('error', (err) => {
             console.error('PeerJS error:', err);
-            if (err.type === 'unavailable-id' || err.type === 'peer-unavailable') {
-                // Lỗi này thường do ID đã được sử dụng – nhưng chúng ta không dùng ID cố định.
-            }
             roomInfo.className = 'info error';
-            roomInfo.innerHTML = `⚠️ Lỗi kết nối PeerJS: ${err.message || err.type}. Hãy thử bấm "Thử kết nối lại" hoặc kiểm tra mạng.`;
-            retryBtn.style.display = 'inline-block';
+            roomInfo.innerHTML = `⚠️ Lỗi PeerJS: ${err.message || err.type}. Tải lại trang.`;
             createBtn.disabled = true;
             joinBtn.disabled = true;
             roomInput.disabled = true;
         });
-        // Khi peer bị đóng (do mất kết nối)
         peer.on('disconnected', () => {
             roomInfo.className = 'info error';
-            roomInfo.innerHTML = '⚠️ Mất kết nối với server PeerJS. Bấm "Thử kết nối lại".';
-            retryBtn.style.display = 'inline-block';
+            roomInfo.innerHTML = '⚠️ Mất kết nối PeerJS. Tải lại trang.';
             createBtn.disabled = true;
             joinBtn.disabled = true;
             roomInput.disabled = true;
         });
     }
-
-    // Nút thử kết nối lại
-    retryBtn.onclick = () => {
-        retryBtn.style.display = 'none';
-        roomInfo.className = 'info';
-        roomInfo.innerHTML = '🔄 Đang thử kết nối lại...';
-        initPeer();
-    };
 
     // ============================================================
     // SINH CÂU HỎI
@@ -562,7 +580,7 @@
     function genSet(n) { let arr=[]; for(let i=0;i<n;i++) arr.push(genOne()); return arr; }
 
     // ============================================================
-    // LOGIC GAME
+    // LOGIC GAME (không đổi)
     // ============================================================
     function startGame(questionsArr) {
         questions = questionsArr;
@@ -674,94 +692,133 @@
     }
 
     // ============================================================
-    // PEERJS – TẠO / THAM GIA PHÒNG
+    // TẠO PHÒNG – MÃ 4 SỐ
     // ============================================================
+    function generateRoomCode() {
+        return String(Math.floor(1000 + Math.random() * 9000));
+    }
+
     createBtn.onclick = () => {
         if (!myId) {
             alert('Đang kết nối PeerJS, vui lòng chờ...');
             return;
         }
+        if (!firebase.auth().currentUser) {
+            alert('Chưa kết nối Firebase, vui lòng thử lại.');
+            return;
+        }
+
         const num = prompt('Số câu hỏi (mặc định 10):', '10');
         let count = parseInt(num) || 10;
         if (count < 1) count = 1;
-        const qs = genSet(count);
-        isHost = true;
-        myPlayerId = 1;
-        roomInfo.className = 'info success';
-        roomInfo.innerHTML = `✅ Phòng tạo thành công. Mã: <b>${myId}</b><br>Chia sẻ mã này cho bạn!`;
-        createBtn.disabled = true;
-        joinBtn.disabled = true;
-        roomInput.disabled = true;
 
-        // Lắng nghe kết nối từ người chơi 2
-        peer.on('connection', (incoming) => {
-            if (conn) {
-                incoming.close();
-                return;
-            }
-            conn = incoming;
-            conn.on('data', (data) => handlePeerData(data));
-            conn.on('close', () => {
-                gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
-                conn = null;
-                // Cho phép tạo phòng lại
-                createBtn.disabled = false;
-                joinBtn.disabled = false;
-                roomInput.disabled = false;
-                roomInfo.className = 'info';
-                roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
-                gameArea.style.display = 'none';
-                lobby.style.display = 'flex';
-            });
-            // Gửi câu hỏi cho người mới
-            setTimeout(() => {
+        roomCode = generateRoomCode();
+        const peerId = myId;
+
+        db.ref('rooms/' + roomCode).set({
+            peerId: peerId,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+            isHost = true;
+            myPlayerId = 1;
+            roomInfo.className = 'info success';
+            roomInfo.innerHTML = `✅ Phòng tạo thành công! Mã: <span class="room-code">${roomCode}</span> (chia sẻ mã này)`;
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+
+            peer.on('connection', (incoming) => {
                 if (conn) {
-                    conn.send({ type: 'init', questions: qs, playerId: 2 });
-                    startGame(qs);
-                    gameArea.style.display = 'block';
-                    lobby.style.display = 'none';
+                    incoming.close();
+                    return;
                 }
-            }, 500);
+                conn = incoming;
+                conn.on('data', (data) => handlePeerData(data));
+                conn.on('close', () => {
+                    gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
+                    conn = null;
+                    db.ref('rooms/' + roomCode).remove();
+                    createBtn.disabled = false;
+                    joinBtn.disabled = false;
+                    roomInput.disabled = false;
+                    roomInfo.className = 'info';
+                    roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
+                    gameArea.style.display = 'none';
+                    lobby.style.display = 'flex';
+                });
+
+                const qs = genSet(count);
+                setTimeout(() => {
+                    if (conn) {
+                        conn.send({ type: 'init', questions: qs, playerId: 2 });
+                        startGame(qs);
+                        gameArea.style.display = 'block';
+                        lobby.style.display = 'none';
+                    }
+                }, 500);
+            });
+        }).catch(err => {
+            alert('Lỗi lưu phòng: ' + err.message);
         });
     };
 
+    // ============================================================
+    // THAM GIA PHÒNG
+    // ============================================================
     joinBtn.onclick = () => {
-        const targetId = roomInput.value.trim().toUpperCase();
-        if (!targetId) { alert('Nhập mã phòng!'); return; }
+        const code = roomInput.value.trim().toUpperCase();
+        if (!code) { alert('Nhập mã phòng!'); return; }
+        if (code.length !== 4) { alert('Mã phòng gồm 4 chữ số!'); return; }
         if (!myId) {
             alert('Đang kết nối PeerJS, vui lòng chờ...');
             return;
         }
-        const c = peer.connect(targetId);
-        c.on('open', () => {
-            conn = c;
-            myPlayerId = 2;
-            isHost = false;
-            c.on('data', (data) => handlePeerData(data));
-            c.on('close', () => {
-                gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
-                conn = null;
-                // Quay lại lobby
-                createBtn.disabled = false;
-                joinBtn.disabled = false;
-                roomInput.disabled = false;
-                roomInfo.className = 'info';
-                roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
-                gameArea.style.display = 'none';
-                lobby.style.display = 'flex';
+        if (!firebase.auth().currentUser) {
+            alert('Chưa kết nối Firebase, vui lòng thử lại.');
+            return;
+        }
+
+        db.ref('rooms/' + code).once('value').then(snapshot => {
+            const data = snapshot.val();
+            if (!data || !data.peerId) {
+                alert('Không tìm thấy phòng với mã này.');
+                return;
+            }
+            const targetId = data.peerId;
+            const c = peer.connect(targetId);
+            c.on('open', () => {
+                conn = c;
+                myPlayerId = 2;
+                isHost = false;
+                c.on('data', (data) => handlePeerData(data));
+                c.on('close', () => {
+                    gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
+                    conn = null;
+                    createBtn.disabled = false;
+                    joinBtn.disabled = false;
+                    roomInput.disabled = false;
+                    roomInfo.className = 'info';
+                    roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
+                    gameArea.style.display = 'none';
+                    lobby.style.display = 'flex';
+                });
+                roomInfo.className = 'info success';
+                roomInfo.innerHTML = `✅ Đã tham gia phòng <b>${code}</b>`;
+                createBtn.disabled = true;
+                joinBtn.disabled = true;
+                roomInput.disabled = true;
             });
-            roomInfo.className = 'info success';
-            roomInfo.innerHTML = `✅ Đã tham gia phòng <b>${targetId}</b>`;
-            createBtn.disabled = true;
-            joinBtn.disabled = true;
-            roomInput.disabled = true;
-        });
-        c.on('error', (err) => {
-            alert('Không thể kết nối đến phòng. Kiểm tra mã hoặc host chưa sẵn sàng.');
+            c.on('error', (err) => {
+                alert('Không thể kết nối đến phòng. Có thể host đã rời.');
+            });
+        }).catch(err => {
+            alert('Lỗi truy vấn phòng: ' + err.message);
         });
     };
 
-    // Xử lý dữ liệu từ peer
+    // ============================================================
+    // XỬ LÝ DỮ LIỆU PEER
+    // ============================================================
     function handlePeerData(data) {
         switch(data.type) {
             case 'init':
@@ -815,6 +872,9 @@
 
     leaveBtn.onclick = () => {
         if (conn) conn.close();
+        if (isHost && roomCode) {
+            db.ref('rooms/' + roomCode).remove();
+        }
         location.reload();
     };
 
@@ -833,6 +893,12 @@
     // ============================================================
     initPeer();
     roomInput.focus();
+
+    window.addEventListener('beforeunload', () => {
+        if (isHost && roomCode) {
+            db.ref('rooms/' + roomCode).remove();
+        }
+    });
 </script>
 </body>
 </html>
