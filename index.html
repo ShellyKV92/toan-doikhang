@@ -6,6 +6,7 @@
     <title>Toán Đối Kháng – 2 người online</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Quicksand:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <style>
+        /* CSS giữ nguyên (tôi sẽ để ngắn gọn) */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Quicksand', sans-serif;
@@ -366,6 +367,8 @@
             cursor: pointer;
         }
         .copy-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #117a8b; }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -395,9 +398,9 @@
                 <div class="player-name" id="p1Name">🐼 Gấu Hồng</div>
                 <div class="total-score" id="p1Score">0</div>
                 <div class="score-list"><p>🎖️ ĐIỂM</p><div class="badges" id="p1Badges">—</div></div>
-                <div class="input-area">
-                    <input type="number" id="answerInput" placeholder="Đáp án" disabled />
-                    <button id="submitBtn" disabled>✅ Gửi</button>
+                <div class="input-area" id="p1InputArea">
+                    <input type="number" id="answerInputP1" placeholder="Đáp án" disabled />
+                    <button id="submitBtnP1" disabled>✅ Gửi</button>
                 </div>
             </div>
             <div class="middle">
@@ -411,7 +414,10 @@
                 <div class="player-name" id="p2Name">🐸 Ếch Xanh</div>
                 <div class="total-score" id="p2Score">0</div>
                 <div class="score-list"><p>🎖️ ĐIỂM</p><div class="badges" id="p2Badges">—</div></div>
-                <div style="text-align:center; margin-top:20px; font-size:1.2rem; font-weight:bold; color:#2e6b4a;">👥 Đang chờ...</div>
+                <div class="input-area" id="p2InputArea">
+                    <input type="number" id="answerInputP2" placeholder="Đáp án" disabled />
+                    <button id="submitBtnP2" disabled>✅ Gửi</button>
+                </div>
             </div>
         </div>
         <div class="footer">
@@ -462,19 +468,20 @@
     };
 
     // ============================================================
-    // PEERJS – TẠO PEER VỚI ID TÙY CHỈNH
+    // PEERJS
     // ============================================================
     let peer = null;
     let isHost = false;
     let conn = null;
+    let myPlayerId = 1;       // 1 = Gấu, 2 = Ếch
     let gameStarted = false;
+    let locked = false;       // Đã có người đúng?
+    let wrongCount = 0;       // Số lần sai của 2 người (0,1,2)
     let currentQuestion = { text: '', answer: 0 };
     let scores = { 1: 0, 2: 0 };
     let qIndex = 0;
     let totalQ = 0;
     let questions = [];
-    let locked = false;
-    let myPlayerId = 1;
     let roomCode = '';
 
     // DOM
@@ -486,8 +493,6 @@
     const roomInput = document.getElementById('roomInput');
     const questionText = document.getElementById('questionText');
     const gameMsg = document.getElementById('gameMsg');
-    const answerInput = document.getElementById('answerInput');
-    const submitBtn = document.getElementById('submitBtn');
     const p1Score = document.getElementById('p1Score');
     const p2Score = document.getElementById('p2Score');
     const p1Badges = document.getElementById('p1Badges');
@@ -500,24 +505,26 @@
     const resultMsg = document.getElementById('resultMsg');
     const closeResult = document.getElementById('closeResult');
 
+    // Inputs
+    const p1Input = document.getElementById('answerInputP1');
+    const p1Submit = document.getElementById('submitBtnP1');
+    const p2Input = document.getElementById('answerInputP2');
+    const p2Submit = document.getElementById('submitBtnP2');
+
     // ============================================================
-    // HÀM TẠO PHÒNG
+    // HÀM TẠO PHÒNG (dùng ID tùy chỉnh)
     // ============================================================
     function createRoomWithCode(code) {
         return new Promise((resolve, reject) => {
             const id = 'room-' + code;
             const p = new Peer(id);
-            p.on('open', () => {
-                resolve(p);
-            });
-            p.on('error', (err) => {
-                reject(err);
-            });
+            p.on('open', () => resolve(p));
+            p.on('error', reject);
         });
     }
 
     // ============================================================
-    // SINH CÂU HỎI
+    // SINH CÂU HỎI (giữ nguyên)
     // ============================================================
     function randomInt(a,b) { return Math.floor(Math.random()*(b-a+1))+a; }
     function genHard() {
@@ -543,7 +550,7 @@
     function genSet(n) { let arr=[]; for(let i=0;i<n;i++) arr.push(genOne()); return arr; }
 
     // ============================================================
-    // LOGIC GAME
+    // LOGIC GAME (CHỈ HOST QUẢN LÝ CÂU HỎI)
     // ============================================================
     function startGame(questionsArr) {
         questions = questionsArr;
@@ -553,9 +560,8 @@
         scores = {1:0, 2:0};
         updateScoreUI();
         gameStarted = true;
-        answerInput.disabled = false;
-        submitBtn.disabled = false;
-        locked = false;
+        // Mở input cho người chơi
+        enableInputs(true);
         showQuestion();
     }
 
@@ -569,20 +575,56 @@
         questionText.textContent = q.text;
         gameMsg.innerHTML = '🤔 Nhập đáp án của bạn!';
         locked = false;
-        answerInput.value = '';
-        answerInput.disabled = false;
-        submitBtn.disabled = false;
-        answerInput.focus();
+        wrongCount = 0;
+        // Xóa giá trị cũ và mở input cho cả hai
+        p1Input.value = '';
+        p2Input.value = '';
+        enableInputs(true);
         qCounter.textContent = qIndex + 1;
+        // Gửi câu hỏi mới cho client (nếu là host)
         if (isHost && conn) {
             conn.send({ type: 'newQ', q: q, index: qIndex });
         }
     }
 
+    function enableInputs(enable) {
+        const disabled = !enable;
+        // Chỉ bật input của người chơi hiện tại
+        if (myPlayerId === 1) {
+            p1Input.disabled = disabled;
+            p1Submit.disabled = disabled;
+            p2Input.disabled = true;
+            p2Submit.disabled = true;
+        } else {
+            p2Input.disabled = disabled;
+            p2Submit.disabled = disabled;
+            p1Input.disabled = true;
+            p1Submit.disabled = true;
+        }
+        // Nếu game chưa bắt đầu hoặc đã kết thúc, khóa tất cả
+        if (!gameStarted || qIndex >= totalQ) {
+            p1Input.disabled = true;
+            p1Submit.disabled = true;
+            p2Input.disabled = true;
+            p2Submit.disabled = true;
+        }
+        // Nếu đã có người đúng (locked), khóa cả hai
+        if (locked) {
+            p1Input.disabled = true;
+            p1Submit.disabled = true;
+            p2Input.disabled = true;
+            p2Submit.disabled = true;
+        }
+    }
+
+    // ============================================================
+    // XỬ LÝ TRẢ LỜI (CHỈ HOST THỰC HIỆN)
+    // ============================================================
     function handleAnswer(pid, val) {
-        if (locked) return;
+        if (!gameStarted || locked || qIndex >= totalQ) return;
         const correct = (val === currentQuestion.answer);
         if (correct) {
+            // Đúng → cộng điểm, khóa, thông báo, chuyển câu sau 2s
             locked = true;
             scores[pid] += 10;
             updateScoreUI();
@@ -590,42 +632,86 @@
             const name = pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
             gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
             playCorrect();
-            if (conn) {
+            // Gửi thông báo cho client
+            if (isHost && conn) {
                 conn.send({ type: 'correct', pid, score: scores[pid] });
             }
+            // Khóa input ngay
+            enableInputs(false);
             setTimeout(() => {
                 qIndex++;
                 showQuestion();
-                if (conn) conn.send({ type: 'nextQ', index: qIndex });
+                // Gửi câu mới cho client
+                if (isHost && conn) {
+                    conn.send({ type: 'newQ', q: currentQuestion, index: qIndex });
+                }
             }, 2000);
         } else {
-            const name = pid === 1 ? 'Bạn' : 'Đối thủ';
-            gameMsg.innerHTML = `❌ ${name} sai! Thử lại.`;
+            // Sai → tăng biến đếm sai
+            wrongCount++;
+            const name = pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+            gameMsg.innerHTML = `❌ ${name} sai! (${wrongCount}/2)`;
             playWrong();
-            if (conn) {
+            // Gửi thông báo sai cho client
+            if (isHost && conn) {
                 conn.send({ type: 'wrong', pid });
             }
-            answerInput.disabled = false;
-            submitBtn.disabled = false;
-            answerInput.focus();
+            // Nếu cả hai đều sai (wrongCount === 2), chuyển câu
+            if (wrongCount >= 2) {
+                locked = true; // khóa để tránh nhập thêm
+                gameMsg.innerHTML = '😢 Cả hai đều sai! Chuyển câu tiếp theo.';
+                if (isHost && conn) {
+                    conn.send({ type: 'bothWrong' });
+                }
+                setTimeout(() => {
+                    qIndex++;
+                    showQuestion();
+                    if (isHost && conn) {
+                        conn.send({ type: 'newQ', q: currentQuestion, index: qIndex });
+                    }
+                }, 2000);
+            } else {
+                // Chỉ thông báo, không khóa, người còn lại có thể trả lời
+                enableInputs(true); // vẫn mở input cho người chơi của mình
+            }
         }
     }
 
-    function submitAnswer() {
-        if (!gameStarted || locked) return;
-        const val = parseInt(answerInput.value.trim());
+    // ============================================================
+    // HÀM GỬI ĐÁP ÁN (TỪ MỖI NGƯỜI CHƠI)
+    // ============================================================
+    function submitAnswer(pid) {
+        if (!gameStarted || locked || qIndex >= totalQ) return;
+        let input, submitBtn;
+        if (pid === 1) {
+            input = p1Input;
+            submitBtn = p1Submit;
+        } else {
+            input = p2Input;
+            submitBtn = p2Submit;
+        }
+        const val = parseInt(input.value.trim());
         if (isNaN(val)) {
             gameMsg.innerHTML = '⚠️ Nhập số!';
             return;
         }
-        if (conn) {
-            conn.send({ type: 'answer', pid: myPlayerId, value: val });
+        // Nếu là host, xử lý trực tiếp
+        if (isHost) {
+            handleAnswer(pid, val);
+        } else {
+            // Nếu là client, gửi đáp án lên host
+            if (conn) {
+                conn.send({ type: 'answer', pid: pid, value: val });
+            }
+            // Tạm khóa input chờ phản hồi
+            input.disabled = true;
+            submitBtn.disabled = true;
         }
-        handleAnswer(myPlayerId, val);
-        answerInput.disabled = true;
-        submitBtn.disabled = true;
     }
 
+    // ============================================================
+    // CẬP NHẬT UI
+    // ============================================================
     function updateScoreUI() {
         p1Score.textContent = scores[1] || 0;
         p2Score.textContent = scores[2] || 0;
@@ -643,8 +729,7 @@
 
     function endGame() {
         gameStarted = false;
-        answerInput.disabled = true;
-        submitBtn.disabled = true;
+        enableInputs(false);
         let msg;
         if (scores[1] > scores[2]) msg = '🏆 Gấu Hồng thắng! 🏆';
         else if (scores[2] > scores[1]) msg = '🏆 Ếch Xanh thắng! 🏆';
@@ -655,16 +740,88 @@
     }
 
     // ============================================================
-    // TẠO PHÒNG MỚI (DÙNG PEER ID TÙY CHỈNH)
+    // XỬ LÝ DỮ LIỆU TỪ PEER
+    // ============================================================
+    function handlePeerData(data) {
+        switch(data.type) {
+            case 'init':
+                // Host gửi danh sách câu hỏi và gán playerId cho client
+                myPlayerId = data.playerId;
+                startGame(data.questions);
+                gameArea.style.display = 'block';
+                lobby.style.display = 'none';
+                break;
+            case 'newQ':
+                // Host gửi câu hỏi mới
+                if (!isHost) {
+                    currentQuestion = data.q;
+                    qIndex = data.index;
+                    questionText.textContent = data.q.text;
+                    qCounter.textContent = qIndex + 1;
+                    locked = false;
+                    wrongCount = 0;
+                    p1Input.value = '';
+                    p2Input.value = '';
+                    enableInputs(true);
+                    gameMsg.innerHTML = '🤔 Nhập đáp án của bạn!';
+                }
+                break;
+            case 'answer':
+                // Client gửi đáp án lên host
+                if (isHost) {
+                    handleAnswer(data.pid, data.value);
+                }
+                break;
+            case 'correct':
+                // Host thông báo ai đúng, cập nhật điểm
+                if (!isHost) {
+                    scores[data.pid] = data.score;
+                    updateScoreUI();
+                    addBadge(data.pid, '✅ +10');
+                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+                    gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
+                    playCorrect();
+                    locked = true;
+                    enableInputs(false);
+                }
+                break;
+            case 'wrong':
+                if (!isHost) {
+                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
+                    wrongCount = (wrongCount || 0) + 1;
+                    gameMsg.innerHTML = `❌ ${name} sai! (${wrongCount}/2)`;
+                    playWrong();
+                    // Nếu cả hai sai, client cũng cần khóa và chờ chuyển câu
+                    if (wrongCount >= 2) {
+                        locked = true;
+                        enableInputs(false);
+                        gameMsg.innerHTML = '😢 Cả hai đều sai! Chuyển câu tiếp theo.';
+                    } else {
+                        // Mở input lại để người còn lại trả lời
+                        enableInputs(true);
+                    }
+                }
+                break;
+            case 'bothWrong':
+                if (!isHost) {
+                    locked = true;
+                    enableInputs(false);
+                    gameMsg.innerHTML = '😢 Cả hai đều sai! Chuyển câu tiếp theo.';
+                }
+                break;
+            default: break;
+        }
+    }
+
+    // ============================================================
+    // TẠO PHÒNG (HOST)
     // ============================================================
     createBtn.onclick = async () => {
         if (peer) { peer.destroy(); peer = null; }
-
         const num = prompt('Số câu hỏi (mặc định 10):', '10');
         let count = parseInt(num) || 10;
         if (count < 1) count = 1;
 
-        // Sinh mã 4 số
         let code;
         let attempts = 0;
         let success = false;
@@ -688,7 +845,7 @@
                 joinBtn.disabled = true;
                 roomInput.disabled = true;
 
-                // Chờ người chơi 2 kết nối
+                // Chờ client kết nối
                 peer.on('connection', (incoming) => {
                     if (conn) {
                         incoming.close();
@@ -699,18 +856,10 @@
                     conn.on('close', () => {
                         gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                         conn = null;
-                        // Reset lobby
-                        createBtn.disabled = false;
-                        joinBtn.disabled = false;
-                        roomInput.disabled = false;
-                        roomInfo.className = 'info';
-                        roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
-                        gameArea.style.display = 'none';
-                        lobby.style.display = 'flex';
-                        // Hủy peer cũ
-                        if (peer) { peer.destroy(); peer = null; }
+                        resetLobby();
                     });
 
+                    // Gửi câu hỏi cho client
                     const qs = genSet(count);
                     setTimeout(() => {
                         if (conn) {
@@ -728,18 +877,13 @@
                         peer.destroy();
                         peer = null;
                         if (roomInfo.className !== 'info') {
-                            roomInfo.className = 'info';
-                            roomInfo.innerHTML = '⏰ Phòng đã hết hạn. Tạo phòng mới.';
-                            createBtn.disabled = false;
-                            joinBtn.disabled = false;
-                            roomInput.disabled = false;
+                            resetLobby();
                         }
                     }
                 }, 300000);
 
             } catch (err) {
-                // ID đã tồn tại, thử mã khác
-                console.warn('Mã', code, 'đã tồn tại, thử lại...');
+                console.warn('Mã', code, 'đã tồn tại, thử mã khác...');
             }
         }
         if (!success) {
@@ -747,8 +891,21 @@
         }
     };
 
+    function resetLobby() {
+        roomInfo.className = 'info';
+        roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
+        createBtn.disabled = false;
+        joinBtn.disabled = false;
+        roomInput.disabled = false;
+        gameArea.style.display = 'none';
+        lobby.style.display = 'flex';
+        if (peer) { peer.destroy(); peer = null; }
+        // Khởi tạo peer không tên để có thể tham gia phòng khác
+        initPeer();
+    }
+
     // ============================================================
-    // THAM GIA PHÒNG
+    // THAM GIA PHÒNG (CLIENT)
     // ============================================================
     joinBtn.onclick = () => {
         const code = roomInput.value.trim().toUpperCase();
@@ -769,13 +926,7 @@
             c.on('close', () => {
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
-                createBtn.disabled = false;
-                joinBtn.disabled = false;
-                roomInput.disabled = false;
-                roomInfo.className = 'info';
-                roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
-                gameArea.style.display = 'none';
-                lobby.style.display = 'flex';
+                resetLobby();
             });
             roomInfo.className = 'info success';
             roomInfo.innerHTML = `✅ Đã tham gia phòng <b>${code}</b>`;
@@ -789,58 +940,42 @@
     };
 
     // ============================================================
-    // XỬ LÝ DỮ LIỆU PEER
+    // KHỞI TẠO PEER KHÔNG TÊN
     // ============================================================
-    function handlePeerData(data) {
-        switch(data.type) {
-            case 'init':
-                myPlayerId = data.playerId;
-                startGame(data.questions);
-                gameArea.style.display = 'block';
-                lobby.style.display = 'none';
-                break;
-            case 'newQ':
-                currentQuestion = data.q;
-                qIndex = data.index;
-                questionText.textContent = data.q.text;
-                qCounter.textContent = qIndex + 1;
-                locked = false;
-                answerInput.value = '';
-                answerInput.disabled = false;
-                submitBtn.disabled = false;
-                gameMsg.innerHTML = '🤔 Nhập đáp án!';
-                break;
-            case 'correct':
-                scores[data.pid] = data.score;
-                updateScoreUI();
-                addBadge(data.pid, '✅ +10');
-                if (data.pid !== myPlayerId) {
-                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
-                    gameMsg.innerHTML = `🎉 ${name} đúng! +10 điểm 🎉`;
-                    playCorrect();
-                }
-                break;
-            case 'wrong':
-                if (data.pid !== myPlayerId) {
-                    const name = data.pid === 1 ? 'Gấu Hồng' : 'Ếch Xanh';
-                    gameMsg.innerHTML = `❌ ${name} sai!`;
-                    playWrong();
-                }
-                break;
-            case 'nextQ':
-                qIndex = data.index;
-                break;
-            default: break;
-        }
+    function initPeer() {
+        if (peer) { peer.destroy(); peer = null; }
+        peer = new Peer();
+        peer.on('open', () => {
+            roomInfo.className = 'info success';
+            roomInfo.innerHTML = '✅ Kết nối thành công!';
+            createBtn.disabled = false;
+            joinBtn.disabled = false;
+            roomInput.disabled = false;
+        });
+        peer.on('error', (err) => {
+            console.error('PeerJS error:', err);
+            roomInfo.className = 'info error';
+            roomInfo.innerHTML = '⚠️ Lỗi kết nối. Tải lại trang.';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+        });
+        peer.on('disconnected', () => {
+            roomInfo.className = 'info error';
+            roomInfo.innerHTML = '⚠️ Mất kết nối. Tải lại trang.';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+        });
     }
 
     // ============================================================
     // SỰ KIỆN UI
     // ============================================================
-    submitBtn.onclick = submitAnswer;
-    answerInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitAnswer();
-    });
+    p1Submit.onclick = () => submitAnswer(1);
+    p1Input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer(1); });
+    p2Submit.onclick = () => submitAnswer(2);
+    p2Input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAnswer(2); });
 
     leaveBtn.onclick = () => {
         if (conn) conn.close();
@@ -861,32 +996,53 @@
     // ============================================================
     // KHỞI ĐỘNG
     // ============================================================
-    // Tạo peer không tên để dùng cho tham gia phòng
-    peer = new Peer();
-    peer.on('open', () => {
-        roomInfo.className = 'info success';
-        roomInfo.innerHTML = '✅ Kết nối thành công!';
-        createBtn.disabled = false;
-        joinBtn.disabled = false;
-        roomInput.disabled = false;
-    });
-    peer.on('error', (err) => {
-        console.error('PeerJS error:', err);
-        roomInfo.className = 'info error';
-        roomInfo.innerHTML = '⚠️ Lỗi kết nối. Tải lại trang.';
-        createBtn.disabled = true;
-        joinBtn.disabled = true;
-        roomInput.disabled = true;
-    });
-    peer.on('disconnected', () => {
-        roomInfo.className = 'info error';
-        roomInfo.innerHTML = '⚠️ Mất kết nối. Tải lại trang.';
-        createBtn.disabled = true;
-        joinBtn.disabled = true;
-        roomInput.disabled = true;
-    });
-
+    initPeer();
     roomInput.focus();
+
+    // Ẩn input của người chơi 2 ban đầu (sẽ hiện khi game bắt đầu)
+    p2InputArea.style.display = 'none';
+    // Sau khi game bắt đầu, hiển thị đúng bên
+    // Tôi sẽ gọi enableInputs sau khi startGame
+    // Sửa lại enableInputs để hiển thị đúng bên
+    // Tôi sẽ bổ sung thêm trong phần startGame
+
+    // Ghi đè enableInputs để hiển thị đúng bên
+    const originalEnable = enableInputs;
+    enableInputs = function(enable) {
+        const disabled = !enable;
+        if (myPlayerId === 1) {
+            p1InputArea.style.display = 'flex';
+            p2InputArea.style.display = 'none';
+            p1Input.disabled = disabled;
+            p1Submit.disabled = disabled;
+        } else {
+            p1InputArea.style.display = 'none';
+            p2InputArea.style.display = 'flex';
+            p2Input.disabled = disabled;
+            p2Submit.disabled = disabled;
+        }
+        if (!gameStarted || qIndex >= totalQ) {
+            p1Input.disabled = true;
+            p1Submit.disabled = true;
+            p2Input.disabled = true;
+            p2Submit.disabled = true;
+        }
+        if (locked) {
+            p1Input.disabled = true;
+            p1Submit.disabled = true;
+            p2Input.disabled = true;
+            p2Submit.disabled = true;
+        }
+    };
+    // Khởi tạo hiển thị ban đầu
+    p1InputArea.style.display = 'flex';
+    p2InputArea.style.display = 'none';
+    p1Input.disabled = true;
+    p1Submit.disabled = true;
+    p2Input.disabled = true;
+    p2Submit.disabled = true;
+
+    // Lưu ý: Khi game bắt đầu, enableInputs(true) sẽ được gọi.
 </script>
 </body>
 </html>
