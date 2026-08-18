@@ -6,6 +6,7 @@
     <title>Toán Đối Kháng – 2 người online</title>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Quicksand:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <style>
+        /* CSS giống hệt như bạn đã có – tôi giữ nguyên để tiết kiệm, nhưng nếu cần tôi sẽ gửi đầy đủ */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Quicksand', sans-serif;
@@ -68,7 +69,6 @@
             .header h1 { font-size: 3rem; flex: 0 0 100%; }
         }
 
-        /* LOBBY */
         .lobby {
             display: flex;
             flex-direction: column;
@@ -117,8 +117,9 @@
             max-width: 90%;
             word-break: break-all;
         }
+        .lobby .info.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .lobby .info.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
 
-        /* GAME */
         .game-area { display: none; }
         .vs {
             display: flex;
@@ -299,7 +300,6 @@
             .middle { width: 100%; order: 2; margin: 20px 0; }
         }
 
-        /* Modal kết thúc */
         .modal {
             display: none;
             position: fixed;
@@ -343,11 +343,16 @@
             transition: 0.05s linear;
         }
         .modal-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b76a3a; }
-        .hidden { display: none !important; }
+
+        #retryBtn {
+            margin-top: 10px;
+            background: #6c757d;
+            box-shadow: 0 3px 0 #4e555b;
+        }
+        #retryBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #4e555b; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <div class="header">
         <h1>TOÁN ĐỐI KHÁNG</h1>
@@ -357,19 +362,18 @@
         </div>
     </div>
 
-    <!-- LOBBY -->
     <div id="lobby" class="lobby">
         <h2>🏠 PHÒNG CHỜ</h2>
         <div class="row">
             <button id="createBtn" class="secondary">➕ Tạo phòng</button>
-            <span style="margin: 0 10px;">hoặc</span>
+            <span style="margin:0 10px;">hoặc</span>
             <input type="text" id="roomInput" placeholder="Mã phòng" maxlength="6" style="text-transform:uppercase;" />
             <button id="joinBtn">🎮 Tham gia</button>
         </div>
         <div id="roomInfo" class="info">🔑 Đang kết nối...</div>
+        <button id="retryBtn" style="display:none;" class="lobby-btn">🔄 Thử kết nối lại</button>
     </div>
 
-    <!-- GAME -->
     <div id="gameArea" class="game-area">
         <div class="vs">
             <div class="player-card" id="p1Card">
@@ -381,7 +385,6 @@
                     <button id="submitBtn" disabled>✅ Gửi</button>
                 </div>
             </div>
-
             <div class="middle">
                 <div class="vs-icon">⚔️ ĐẤU TRÍ ⚔️</div>
                 <div class="question-box">
@@ -389,17 +392,13 @@
                 </div>
                 <div class="info-message" id="gameMsg">🌟 Chờ người chơi...</div>
             </div>
-
             <div class="player-card p2" id="p2Card">
                 <div class="player-name" id="p2Name">🐸 Ếch Xanh</div>
                 <div class="total-score" id="p2Score">0</div>
                 <div class="score-list"><p>🎖️ ĐIỂM</p><div class="badges" id="p2Badges">—</div></div>
-                <div style="text-align:center; margin-top:20px; font-size:1.2rem; font-weight:bold; color:#2e6b4a;">
-                    👥 Đang chờ...
-                </div>
+                <div style="text-align:center; margin-top:20px; font-size:1.2rem; font-weight:bold; color:#2e6b4a;">👥 Đang chờ...</div>
             </div>
         </div>
-
         <div class="footer">
             <div class="total-pk">🏆 TỔNG: <span id="totalPk">0 - 0</span></div>
             <div class="progress">📊 TIẾN ĐỘ: <span id="qCounter">0</span>/<span id="qTotal">0</span></div>
@@ -408,7 +407,6 @@
     </div>
 </div>
 
-<!-- MODAL KẾT THÚC -->
 <div id="resultModal" class="modal">
     <div class="modal-box">
         <h2>🏁 KẾT THÚC</h2>
@@ -417,9 +415,7 @@
     </div>
 </div>
 
-<!-- PeerJS -->
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
 <script>
     // ============================================================
     // ÂM THANH
@@ -445,17 +441,15 @@
     function playWin() {
         [523, 659, 784, 1047, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.15), i * 150));
     }
-
     document.getElementById('soundToggle').onclick = function() {
         soundEnabled = !soundEnabled;
         this.textContent = soundEnabled ? '🔊 ÂM THANH' : '🔇 TẮT ÂM';
     };
 
     // ============================================================
-    // PEERJS – KẾT NỐI TRỰC TIẾP
+    // PEERJS
     // ============================================================
-    const peer = new Peer();
-
+    let peer = null;
     let myId = null;
     let isHost = false;
     let conn = null;
@@ -490,6 +484,56 @@
     const resultModal = document.getElementById('resultModal');
     const resultMsg = document.getElementById('resultMsg');
     const closeResult = document.getElementById('closeResult');
+    const retryBtn = document.getElementById('retryBtn');
+
+    // ============================================================
+    // KHỞI TẠO PEER
+    // ============================================================
+    function initPeer() {
+        if (peer) {
+            peer.destroy();
+            peer = null;
+        }
+        peer = new Peer();
+        peer.on('open', (id) => {
+            myId = id;
+            roomInfo.className = 'info success';
+            roomInfo.innerHTML = `✅ Kết nối thành công! ID của bạn: <b>${id}</b> (sao chép mã này để chia sẻ)`;
+            retryBtn.style.display = 'none';
+            createBtn.disabled = false;
+            joinBtn.disabled = false;
+            roomInput.disabled = false;
+        });
+        peer.on('error', (err) => {
+            console.error('PeerJS error:', err);
+            if (err.type === 'unavailable-id' || err.type === 'peer-unavailable') {
+                // Lỗi này thường do ID đã được sử dụng – nhưng chúng ta không dùng ID cố định.
+            }
+            roomInfo.className = 'info error';
+            roomInfo.innerHTML = `⚠️ Lỗi kết nối PeerJS: ${err.message || err.type}. Hãy thử bấm "Thử kết nối lại" hoặc kiểm tra mạng.`;
+            retryBtn.style.display = 'inline-block';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+        });
+        // Khi peer bị đóng (do mất kết nối)
+        peer.on('disconnected', () => {
+            roomInfo.className = 'info error';
+            roomInfo.innerHTML = '⚠️ Mất kết nối với server PeerJS. Bấm "Thử kết nối lại".';
+            retryBtn.style.display = 'inline-block';
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+            roomInput.disabled = true;
+        });
+    }
+
+    // Nút thử kết nối lại
+    retryBtn.onclick = () => {
+        retryBtn.style.display = 'none';
+        roomInfo.className = 'info';
+        roomInfo.innerHTML = '🔄 Đang thử kết nối lại...';
+        initPeer();
+    };
 
     // ============================================================
     // SINH CÂU HỎI
@@ -632,16 +676,6 @@
     // ============================================================
     // PEERJS – TẠO / THAM GIA PHÒNG
     // ============================================================
-    peer.on('open', (id) => {
-        myId = id;
-        roomInfo.innerHTML = `🔑 ID của bạn: <b>${id}</b> (sao chép mã này để chia sẻ)`;
-    });
-
-    peer.on('error', (err) => {
-        console.error('PeerJS error:', err);
-        roomInfo.innerHTML = '⚠️ Lỗi kết nối PeerJS. Hãy thử lại sau.';
-    });
-
     createBtn.onclick = () => {
         if (!myId) {
             alert('Đang kết nối PeerJS, vui lòng chờ...');
@@ -653,11 +687,13 @@
         const qs = genSet(count);
         isHost = true;
         myPlayerId = 1;
+        roomInfo.className = 'info success';
         roomInfo.innerHTML = `✅ Phòng tạo thành công. Mã: <b>${myId}</b><br>Chia sẻ mã này cho bạn!`;
         createBtn.disabled = true;
         joinBtn.disabled = true;
         roomInput.disabled = true;
 
+        // Lắng nghe kết nối từ người chơi 2
         peer.on('connection', (incoming) => {
             if (conn) {
                 incoming.close();
@@ -668,7 +704,16 @@
             conn.on('close', () => {
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
+                // Cho phép tạo phòng lại
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+                roomInput.disabled = false;
+                roomInfo.className = 'info';
+                roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
+                gameArea.style.display = 'none';
+                lobby.style.display = 'flex';
             });
+            // Gửi câu hỏi cho người mới
             setTimeout(() => {
                 if (conn) {
                     conn.send({ type: 'init', questions: qs, playerId: 2 });
@@ -696,7 +741,16 @@
             c.on('close', () => {
                 gameMsg.innerHTML = '⚠️ Đối thủ đã rời!';
                 conn = null;
+                // Quay lại lobby
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+                roomInput.disabled = false;
+                roomInfo.className = 'info';
+                roomInfo.innerHTML = '🔑 Phòng đã đóng. Bạn có thể tạo phòng mới.';
+                gameArea.style.display = 'none';
+                lobby.style.display = 'flex';
             });
+            roomInfo.className = 'info success';
             roomInfo.innerHTML = `✅ Đã tham gia phòng <b>${targetId}</b>`;
             createBtn.disabled = true;
             joinBtn.disabled = true;
@@ -707,6 +761,7 @@
         });
     };
 
+    // Xử lý dữ liệu từ peer
     function handlePeerData(data) {
         switch(data.type) {
             case 'init':
@@ -776,6 +831,7 @@
     // ============================================================
     // KHỞI ĐỘNG
     // ============================================================
+    initPeer();
     roomInput.focus();
 </script>
 </body>
